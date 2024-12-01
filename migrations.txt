@@ -1,0 +1,2 @@
+CREATE TABLE User (dob INT,name VARCHAR(50) NOT NULL,User_id SERIAL NOT NULL,CONSTRAINT pk_User PRIMARY KEY (User_id));
+CREATE TABLE Account (CONSTRAINT uq_acc_no UNIQUE (acc_no),acc_no VARCHAR(16) NOT NULL,balance DECIMAL(8,2),Account_id SERIAL NOT NULL,CONSTRAINT pk_Account PRIMARY KEY (Account_id));
