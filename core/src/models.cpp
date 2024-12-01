@@ -18,14 +18,14 @@ overloaded(Ts...) -> overloaded<Ts...>;
 
 bool is_file_empty(){
     std::cout<<"inside the file checker function"<<std::endl;
-    bool is_empty = false;
+    bool is_empty = true;
     if(std::filesystem::exists("schema.json")){
         std::cout<<"file exists"<<std::endl;
-        if(std::filesystem::file_size("schema.json") == 0){
-            is_empty = true;
+        if(std::filesystem::file_size("schema.json") != 0){
+            is_empty = false;
         }
     }
-    std::cout<<"file is empty: "<<is_empty<<std::endl;
+    std::cout<<"is file empty? "<<is_empty<<std::endl;
     return is_empty;
 }
 
@@ -79,7 +79,7 @@ void Model::make_migrations(){
     if(!is_file_empty()){
         std::cout<<"file was checked for emptiness"<<std::endl;
         init_ms = load_schema_ms();
-        for(auto& [model, field_map] : init_ms){
+        for(auto& [model, field_map] : init_ms){//just for  debugging
             std::cout<< model << "{";
             for(auto& [col, col_items] : field_map)
                 std::cout<< col;
@@ -131,7 +131,7 @@ std::string sqlize_table(std::string model_name, std::unordered_map<std::string,
             
             std::string full_sql_segment = col + " " + col_obj.sql_segment;
             sql_strings.push_back(full_sql_segment);
-            
+
             if(col_obj.unique){
                 std::string uq_constraint = "CONSTRAINT uq_" + col + " UNIQUE (" + col + ")";
                 sql_strings.push_back(uq_constraint);

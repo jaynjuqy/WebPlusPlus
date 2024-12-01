@@ -85,8 +85,7 @@ public:
 		}
 		sql_segment += datatype;
 		if (length == 0){
-			if(datatype != "TEXT")
-			std::cerr<< "Length attribute is required for datatype " << datatype << std::endl;
+			if(datatype != "TEXT")std::cerr<< "Length attribute is required for datatype " << datatype << std::endl;
 			return;
 		}
 		sql_segment += "(" + std::to_string(length) + ")";

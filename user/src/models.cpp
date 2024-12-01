@@ -3,7 +3,7 @@
 class User : public Model{
 public:
     User(){
-        fields["name"] = CharField("VARCHAR", true, false, 50);
+        fields["name"] = CharField("VARCHAR", false, false, 50);
         fields["dob"] = IntegerField();
     }
 };
