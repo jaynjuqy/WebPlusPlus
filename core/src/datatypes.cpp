@@ -1,5 +1,6 @@
 #include "../includes/datatypes.hpp"
 #include <ctype.h>
+#include <ostream>
 #include <variant>
 
 std::string to_upper(std::string& str){
@@ -12,12 +13,14 @@ std::string to_upper(std::string& str){
 template <typename T>
 bool try_set_variant(const nlohmann::json& j, DataTypeVariant& variant) {
     try {
-        T value;
-        from_json(j, value);
-        variant = std::move(value);
-        return true;
-    } catch (const std::exception&) {
-        return false; // Failed, continue to next type
+      T value;
+      from_json(j, value);
+      variant = std::move(value);
+      std::cout<<"Success for type."<<std::endl;
+      return true;
+    }catch (const std::exception& e) {
+      //std::cerr<<"Exception: " << e.what()<<std::endl;
+      return false;
     }
 }
 
@@ -38,7 +41,8 @@ void from_json(const nlohmann::json& j, IntegerField& field){
     field.unique = j.at("unique").get<bool>();
     field.primary_key = j.at("primary_key").get<bool>();
     field.check_constraint = j.at("check_constraint").get<int>();
-    field.check_condition = j.at("check_condition").get<int>();
+    field.check_condition = j.at("check_condition").get<std::string>();
+    field.sql_generator();
 }
 
 void to_json(nlohmann::json& j, const DecimalField& field){
@@ -55,6 +59,7 @@ void from_json(const nlohmann::json& j, DecimalField& field){
     field.primary_key = j.at("primary_key").get<bool>();
     field.max_length = j.at("max_length").get<int>();
     field.decimal_places = j.at("dec_places").get<int>();
+    field.sql_generator();
 }
 
 void to_json(nlohmann::json& j, const CharField& field){
@@ -73,6 +78,7 @@ void from_json(const nlohmann::json& j, CharField& field){
     field.unique = j.at("unique").get<bool>();
     field.primary_key = j.at("primary_key").get<bool>();
     field.length = j.at("length").get<int>();
+    field.sql_generator();
 }
 
 void to_json(nlohmann::json& j, const BoolField& field){
@@ -84,9 +90,11 @@ void to_json(nlohmann::json& j, const BoolField& field){
 }
 
 void from_json(const nlohmann::json& j, BoolField& field){
-    field.not_null = j.at("not_null").get<bool>();
-    field.enable_default = j.at("enable_def").get<bool>();
-    field.default_value = j.at("default").get<bool>();
+   field.datatype = "BOOLEAN";
+   field.not_null = j.at("not_null").get<bool>();
+   field.enable_default = j.at("enable_def").get<bool>();
+   field.default_value = j.at("default").get<bool>();
+   field.sql_generator();
 }
 
 void to_json(nlohmann::json& j, const BinaryField& field){
@@ -99,10 +107,12 @@ void to_json(nlohmann::json& j, const BinaryField& field){
 }
 
 void from_json(const nlohmann::json& j, BinaryField& field){
+    field.datatype = "BYTEA";
     field.not_null = j.at("not_null").get<bool>();
     field.unique = j.at("unique").get<bool>();
     field.primary_key = j.at("primary_key").get<bool>();
     field.size = j.at("size").get<int>();
+    field.sql_generator();
 }
 
 void to_json(nlohmann::json& j, const DateTimeField& field){
@@ -119,6 +129,7 @@ void from_json(const nlohmann::json& j, DateTimeField& field){
     field.primary_key = j.at("primary_key").get<bool>();
     field.enable_default = j.at("enable_def").get<bool>();
     field.default_val = j.at("default_value").get<std::string>();
+    field.sql_generator();
 }
 
 void to_json(nlohmann::json& j, const ForeignKey& field){
@@ -131,6 +142,7 @@ void to_json(nlohmann::json& j, const ForeignKey& field){
 }
 
 void from_json(const nlohmann::json& j, ForeignKey& field){
+    field.datatype = "FOREIGN KEY";
     field.model_name = j.at("model_name").get<std::string>();
     field.column_name = j.at("column_name").get<std::string>();
     field.on_delete = j.at("on_delete").get<std::string>();
@@ -139,7 +151,7 @@ void from_json(const nlohmann::json& j, ForeignKey& field){
 
 void variant_to_json(nlohmann::json& j, const DataTypeVariant& variant){
     std::visit([&j](auto& arg) mutable {
-    	to_json(j, arg);	    
+    	to_json(j, arg);
     }, variant);
 }
 

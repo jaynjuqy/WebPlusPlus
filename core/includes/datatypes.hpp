@@ -12,7 +12,7 @@ public:
 	std::string datatype, sql_segment;
 	bool primary_key, not_null, unique;
 
-	FieldAttr(std::string dt, bool nn, bool uq, bool pk)
+	FieldAttr(std::string dt = "null", bool nn = false, bool uq = false, bool pk = false)
 	: datatype(dt), not_null(nn), unique(uq), primary_key(pk)
 	{}
 };
@@ -22,7 +22,8 @@ public:
 	std::string check_condition;
 	int check_constraint;
 
-	IntegerField(std::string datatype = "INT", bool not_null = false, bool unique = false, bool pk = false, int check_constr = 0, std::string check_cond = "default")
+  IntegerField() = default;
+	IntegerField(std::string datatype, bool pk = false, bool not_null = false, bool unique = false, int check_constr = 0, std::string check_cond = "default")
     :FieldAttr(datatype, not_null, unique, pk), check_constraint(check_constr), check_condition(check_cond)
  	{
     	sql_generator();
@@ -31,7 +32,7 @@ public:
 	void sql_generator(){
 		datatype = to_upper(datatype);
 		if(datatype != "INT" && datatype != "SMALLINT" && datatype != "BIGINT"){
-			std::cerr<< "Datatype" <<datatype<<"is not supported by postgreSQL. Provide a valid datatype"<<std::endl;
+			std::cerr<< "Datatype " <<datatype<<" is not supported by postgreSQL. Provide a valid datatype"<<std::endl;
 			return;
 		}
 		sql_segment += datatype;
@@ -46,7 +47,8 @@ class DecimalField: public FieldAttr{
 public:
 	int max_length, decimal_places;
 
-	DecimalField(std::string datatype = "DECIMAL", int max_length = 0, int decimal_places = 0, bool pk = false)
+  DecimalField() = default;
+	DecimalField(std::string datatype, int max_length, int decimal_places, bool pk = false)
     :FieldAttr(datatype, false, false, pk), max_length(max_length), decimal_places(decimal_places)
 	{
     	sql_generator();
@@ -72,7 +74,8 @@ class CharField: public FieldAttr{
 public:
 	int length;
 
-	CharField(std::string datatype = "VARCHAR", bool not_null = false, bool unique = false, int length = 0, bool pk = false)
+  CharField() = default;
+	CharField(std::string datatype, int length = 0, bool not_null = false, bool unique = false, bool pk = false)
     :FieldAttr(datatype, not_null, unique, pk), length(length)
 	{
 	    sql_generator();
@@ -84,8 +87,8 @@ public:
 			return;
 		}
 		sql_segment += datatype;
-		if (length == 0){
-			if(datatype != "TEXT")std::cerr<< "Length attribute is required for datatype " << datatype << std::endl;
+		if (length == 0 && datatype != "TEXT"){
+      std::cerr<< "Length attribute is required for datatype " << datatype << std::endl;
 			return;
 		}
 		sql_segment += "(" + std::to_string(length) + ")";
@@ -122,8 +125,9 @@ class BinaryField: public FieldAttr{
 public:
 	int size;
 
-	BinaryField(int size = 0, bool not_null = false, bool unique = false, bool pk = false)
-    :FieldAttr("BYTEA", not_null, unique, pk),size(size)
+  BinaryField() = default;
+	BinaryField(int size, bool not_null = false, bool unique = false, bool pk = false)
+  :FieldAttr("BYTEA", not_null, unique, pk),size(size)
 	{
     	sql_generator();
 	}
@@ -145,14 +149,15 @@ public:
 	bool enable_default;
 	std::string default_val;
 
-	DateTimeField(std::string datatype = "TIME", bool enable_default = false, std::string default_val = "default", bool pk = false)
-    	:FieldAttr(datatype, false, false, pk), enable_default(enable_default), default_val(default_val)
+  DateTimeField() = default;
+	DateTimeField(std::string datatype, bool enable_default = false, std::string default_val = "default", bool pk = false)
+  :FieldAttr(datatype, false, false, pk), enable_default(enable_default), default_val(default_val)
 	{
-    	sql_generator();
+   	sql_generator();
 	}
 	void sql_generator(){
 		datatype = to_upper(datatype);
-		if(datatype != "DATE" && datatype != "TIME" && datatype != "TIMESTAMP_WTZ" && datatype != "TIMESTAMP" && datatype != "TIME_WTZ" && datatype != "INTERVAL"){
+		if(datatype != "DATE" && datatype != "TIME" && datatype != "TIMESTAMP_WTZ" && datatype != "TIMESTAMP" && datatype != "TIME_WTZ"  && datatype != "INTERVAL"){
 			std::cerr<<"Datatype " <<datatype<< "not supported in postgreSQL. Provide a valid datatype"<<std::endl;
 			return;
 		}
@@ -170,17 +175,17 @@ void from_json(const nlohmann::json& j, DateTimeField& field);
 
 class ForeignKey : public FieldAttr{
 public:
-    std::string model_name, column_name, on_delete, on_update;
+  std::string model_name, column_name, on_delete, on_update;
 
 	ForeignKey(std::string mn = "def", std::string cn = "def", std::string on_del = "def", std::string on_upd = "def")
 	:FieldAttr("FOREIGN KEY", false, false, false), model_name(mn), column_name(cn), on_delete(on_del), on_update(on_upd)
 	{}
 
 	std::string sql_generator(const std::string& column){
-        if(model_name == "def" || column_name == "def"){
-            std::cerr<< "Please provide the reference model name and column name for the column "<< column << std::endl;
+    if(model_name == "def" || column_name == "def"){
+      std::cerr<< "Please provide the reference model name and column name for the column "<< column << std::endl;
 		}
-	    std::string sql_segment = "FOREIGN KEY(" + column + ") REFERENCES " + model_name + " (" + column_name + ")";
+	  std::string sql_segment = "FOREIGN KEY(" + column + ") REFERENCES " + model_name + " (" + column_name + ")";
 		if(on_delete != "def"){
 			on_delete = to_upper(on_delete);
 			sql_segment += " ON DELETE " + on_delete;
