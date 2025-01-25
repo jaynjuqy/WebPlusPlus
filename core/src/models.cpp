@@ -56,14 +56,14 @@ ms_map parse_to_obj(nlohmann::json& j){
 
 void save_schema_ms(const ms_map& schema){
     std::ofstream schema_ms_file("schema.json");
-    if(!schema_ms_file.is_open()) throw std::runtime_error("Could not write schema into memory file.");
+    if(!schema_ms_file.is_open()) throw std::runtime_error("Could not write schema into file.");
     nlohmann::json j = jsonify(schema);
     schema_ms_file << j.dump(4);
 }
 
 ms_map load_schema_ms(){
     std::ifstream schema_ms_file("schema.json");
-    if(!schema_ms_file.is_open()) throw std::runtime_error("Could not load schema from memory file.");
+    if(!schema_ms_file.is_open()) throw std::runtime_error("Could not load schema from file.");
     nlohmann::json j;
     schema_ms_file >> j;
     return parse_to_obj(j);
@@ -91,6 +91,7 @@ std::string sqlize_table(std::string model_name, std::unordered_map<std::string,
         std::string fk_sql_seg = col_obj.sql_generator(col);
         fk_sql_seg = "CONSTRAINT fk_" + model_name + "_" + col + " " + fk_sql_seg;
         sql_strings.push_back(fk_sql_seg);
+        return;
       }
       if(col_obj.primary_key){
         primary_key_cols.push_back(col);
@@ -101,7 +102,7 @@ std::string sqlize_table(std::string model_name, std::unordered_map<std::string,
           std::string cond = col_obj.check_condition;
           std::string sql_seg;
 
-          if(cond == ">=")
+          /*if(cond == ">=")
             sql_seg = "CHECK (" + col + ">=" + std::to_string(col_obj.check_constraint) + ")";
           else if(cond == "<=")
             sql_seg = "CHECK (" + col + "<=" + std::to_string(col_obj.check_constraint) + ")";
@@ -114,7 +115,7 @@ std::string sqlize_table(std::string model_name, std::unordered_map<std::string,
           else if(cond == "=")
             sql_seg = "CHECK (" + col + "=" + std::to_string(col_obj.check_constraint) + ")";
           else
-            std::cerr << "No such check condition " << cond << " was found" << std::endl;
+            std::cerr << "No such check condition " << cond << " was found" << std::endl;*/
 
           sql_strings.push_back(sql_seg);
         }
@@ -371,38 +372,40 @@ void Model::track_changes(){
 
   for(auto& str : rename(mrm, frm, init_ms)) Migrations<< str;
   for(auto& str : create_or_drop_tables(init_ms, new_ms)) Migrations<< str; 
-  std::vector<std::string> pk_cols;
 
-  auto init_it = init_ms.begin();
-  auto new_it = new_ms.begin();
+  std::vector<std::string> pk_cols;
   std::string alterations, pk, fk;
 
-  while(init_it != init_ms.end() && new_it != new_ms.end()){
-    for(auto& [col, dtv_obj] : new_it->second){
-
+  for(auto& [init_model_name, init_col_map]:init_ms){
+    auto new_it = new_ms.find(init_model_name);
+    if(new_it == new_ms.end()){
+      std::cerr<<"Something went wrong in the check for the new iterator"<<std::endl;
+      return;
+    }
+    for(auto& [new_col, dtv_obj] : new_it->second){
       std::visit([&](auto& col_obj){
-        if(init_it->second.find(col) == init_it->second.end()){
-          Migrations << "ALTER TABLE " + new_it->first + " ADD " + col + " " + col_obj.sql_segment + ";\n";
+        if(init_col_map.find(new_col) == init_col_map.end()){
+          Migrations << "ALTER TABLE " + new_it->first + " ADD " + new_col + " " + col_obj.sql_segment + ";\n";
+          return;
         }
         std::visit([&](auto& init_field){
           if constexpr(std::is_same_v<std::decay_t<decltype(col_obj)>, ForeignKey>){
-            col_obj.sql_generator(col); 
+            col_obj.sql_generator(new_col);
           }
 
           if(init_field.sql_segment != col_obj.sql_segment){
 
-            handle_types(new_it, col, dtv_obj, init_it->second[col], Migrations);
-
+            handle_types(new_it, new_col, dtv_obj, init_col_map[new_col], Migrations);
             if(col_obj.primary_key){
-              pk_cols.push_back(col);
+              pk_cols.push_back(new_col);
             }
 
             if(init_field.not_null != col_obj.not_null){
               if(col_obj.not_null){
-                alterations = col + " SET NOT NULL";
+                alterations = new_col + " SET NOT NULL";
                 Migrations << "ALTER TABLE " +  new_it->first + " ALTER COLUMN " + alterations + ";\n";
               }else{
-                Migrations << "ALTER TABLE " +  new_it->first + " ALTER COLUMN " + col + " DROP NOT NULL;\n";
+                Migrations << "ALTER TABLE " +  new_it->first + " ALTER COLUMN " + new_col + " DROP NOT NULL;\n";
               }
             }
 
@@ -412,20 +415,20 @@ void Model::track_changes(){
                 for(auto& [m_nms, col_map] : frm){
                   if(m_nms == new_it->first){
                     for(auto& [old_cn, new_cn] : col_map){
-                      if(col == new_cn){
+                      if(new_col == new_cn){
                         constraint_name = constraint_name + "_" + old_cn;
                       }else{
-                        constraint_name = constraint_name + "_" + col;
+                        constraint_name = constraint_name + "_" + new_col;
                       }
                     }
                   }else{
-                    constraint_name = constraint_name + "_" + col;
+                    constraint_name = constraint_name + "_" + new_col;
                   }
                 }
                 if(frm.empty()){
-                  Migrations << "ALTER TABLE " + new_it->first + " ADD CONSTRAINT uq_" + col + " UNIQUE(" + col + ");\n";
+                  Migrations << "ALTER TABLE " + new_it->first + " ADD CONSTRAINT uq_" + new_col + " UNIQUE(" + new_col + ");\n";
                 }else{
-                  Migrations << "ALTER TABLE " + new_it->first + " ADD CONSTRAINT uq_" + col + " UNIQUE(" + col + ");\n";
+                  Migrations << "ALTER TABLE " + new_it->first + " ADD CONSTRAINT uq_" + new_col + " UNIQUE(" + new_col + ");\n";
                 }
 
               }else{
@@ -433,25 +436,25 @@ void Model::track_changes(){
                 for(auto& [m_nms, col_map] : frm){
                   if(m_nms == new_it->first){
                     for(auto& [old_cn, new_cn] : col_map){
-                      if(col == new_cn){
+                      if(new_col == new_cn){
                         constraint_name = constraint_name + "_" + old_cn;
                       }else{
-                        constraint_name = constraint_name + "_" + col;
+                        constraint_name = constraint_name + "_" + new_col;
                       }
                     }
                   }else{
-                    constraint_name = constraint_name + "_" + col;
+                    constraint_name = constraint_name + "_" + new_col;
                   }
                 }
                 if(frm.empty()){
-                  Migrations << "ALTER TABLE " + new_it->first + " DROP CONSTRAINT uq_" + col + ";\n";
+                  Migrations << "ALTER TABLE " + new_it->first + " DROP CONSTRAINT uq_" + new_col + ";\n";
                 }else{
                   Migrations << "ALTER TABLE " + new_it->first + " DROP CONSTRAINT " + constraint_name + ";\n";
                 }
               }
             }
           }
-        }, init_it->second[col]);
+        }, init_col_map[std::string(new_col)]);
       }, dtv_obj);
 
       if(!mrm.empty()){
@@ -473,15 +476,24 @@ void Model::track_changes(){
 
         Migrations << "ALTER TABLE " + new_it->first + " ADD CONSTRAINT " + pk_seg + ";\n";
       }
+    }
+  }
 
-//WARN might be an error, acting strangely
-      for(const auto& [col, col_obj] : init_it->second){
-        if(new_it->second.find(col) == new_it->second.end()){
-          Migrations << "ALTER TABLE " + init_it->first + " DROP COLUMN " + col + ";\n";
-        }
+  //ERROR undefined behaviour from this for loop. The init_it iterator somehow accesses the columns to other tables 
+  //leading to undefined drops of these columns even though they are not to be be dropped...
+
+  for(const auto& [new_model_name, new_col_map]:new_ms){
+    const auto init_it = init_ms.find(new_model_name);
+    if(init_it == init_ms.end()){
+      std::cerr<<"Something went wrong in the check for the init iterator."<<std::endl;
+      return;
+    }
+    for(auto& [old_col, dtv_obj] : init_it->second){
+      std::cout<<"Col in init_ms is: "<<old_col<<"in model: "<< init_it->first<<std::endl;
+      if(new_col_map.find(old_col) == new_col_map.end()){
+        std::cout<<"Dropping col: "<<old_col<<std::endl;
+        Migrations << "ALTER TABLE " + new_model_name + " DROP " + old_col + ";\n";
       }
     }
-    ++init_it;
-    ++new_it;
   }
 }

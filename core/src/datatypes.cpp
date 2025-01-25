@@ -16,17 +16,15 @@ bool try_set_variant(const nlohmann::json& j, DataTypeVariant& variant) {
       T value;
       from_json(j, value);
       variant = std::move(value);
-      std::cout<<"Success for type."<<std::endl;
       return true;
     }catch (const std::exception& e) {
-      //std::cerr<<"Exception: " << e.what()<<std::endl;
       return false;
     }
 }
 
 void to_json(nlohmann::json& j, const IntegerField& field){
     j = nlohmann::json{
-	    {"datatype", field.datatype},	
+	    {"datatype", field.datatype},
     	{"not_null", field.not_null},
 	    {"unique", field.unique},
     	{"primary_key", field.primary_key},
@@ -47,7 +45,7 @@ void from_json(const nlohmann::json& j, IntegerField& field){
 
 void to_json(nlohmann::json& j, const DecimalField& field){
     j = nlohmann::json{
-	    {"datatype", field.datatype},	
+	    {"datatype", field.datatype},
     	{"primary_key", field.primary_key},
 	    {"max_length", field.max_length},
     	{"dec_places", field.decimal_places}
@@ -64,7 +62,7 @@ void from_json(const nlohmann::json& j, DecimalField& field){
 
 void to_json(nlohmann::json& j, const CharField& field){
     j = nlohmann::json{
-	    {"datatype", field.datatype},	
+	    {"datatype", field.datatype},
     	{"not_null", field.not_null},
 	    {"unique", field.unique},
     	{"primary_key", field.primary_key},
@@ -117,7 +115,7 @@ void from_json(const nlohmann::json& j, BinaryField& field){
 
 void to_json(nlohmann::json& j, const DateTimeField& field){
     j = nlohmann::json{
-	    {"datatype", field.datatype},	
+	    {"datatype", field.datatype},
     	{"primary_key", field.primary_key},
 	    {"default_value", field.default_val},
     	{"enable_def", field.enable_default}
@@ -160,9 +158,8 @@ bool try_deserialize(const nlohmann::json& j, DataTypeVariant& variant, std::var
     return ((try_set_variant<Ts>(j, variant)) || ...);
 }
 
-// Universal from_json for the variant
 void variant_from_json(const nlohmann::json& j, DataTypeVariant& variant) {
     if (!try_deserialize(j, variant, static_cast<DataTypeVariant*>(nullptr))) {
-        throw std::invalid_argument("Unknown type in JSON");
+        throw std::invalid_argument("Error occured while parsing JSON back to objects.");
     }
 }

@@ -14,5 +14,8 @@ migrate: $(uSOURCE) $(uINCLUDES)/*.hpp
 	g++ -I$(uINCLUDES) -o migrate $(uSOURCE) -L. -lcore
 	LD_LIBRARY_PATH=$(shell pwd):$(LD_LIBRARY_PATH) ./migrate
 
+clean:
+	rm -f libcore.so
+
 clean_all:
 	rm -f libcore.so migrate schema.json migrations.sql
