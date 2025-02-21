@@ -6,8 +6,5 @@
 std::unordered_map<std::string, std::string> model_renames;
 std::unordered_map<std::string, std::unordered_map<std::string, std::string>> column_renames;
 
-int main(){
-  //insert any renames into the above maps
-  return 0;
-}
-
+//TODO we could pass a nlohmann::json object inside make_migrations fn so that we could avoid this stuff...
+//so that we could save on space and also avoid all the warnings of defining stuff in header files...

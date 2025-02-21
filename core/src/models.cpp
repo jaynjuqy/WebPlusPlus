@@ -2,6 +2,7 @@
 #include <string>
 #include <cstdlib>
 #include <type_traits>
+#include <variant>
 #include <vector>
 #include <fstream>
 #include "../includes/models.hpp"
@@ -17,68 +18,99 @@ struct overloaded : Ts... { using Ts::operator()...; };
 template<typename... Ts>
 overloaded(Ts...) -> overloaded<Ts...>;
 
-bool is_file_empty(){
-    bool is_empty = true;
-    if(std::filesystem::exists("schema.json")){
-        if(std::filesystem::file_size("schema.json") != 0){
-            is_empty = false;
+void create_model_hpp(const ms_map& migrations){
+  std::ofstream models_hpp("model.hpp");
+  std::string cols_str;
+  models_hpp<<"#include <string>\n#include <vector>\n"
+            << "#include <pqxx/row>\n\n";
+
+  for(const auto& [model_name, col_map] : migrations){
+    models_hpp<< "class " + model_name + "{\npublic:\n";
+    for(const auto& [col_name, dtv_obj] : col_map){
+      cols_str += col_name + ",";
+      std::visit([&](auto& col_obj){
+//TODO rn, foreign key is hardcoded with int datatype, add more for multiple cols, and also some support for easy access
+        if constexpr(std::is_same_v<std::decay_t<decltype(col_obj)>, ForeignKey>){
+          models_hpp<<"  int " + col_name + ";\n";
+          return;
         }
+        models_hpp<< "  " + col_obj.ctype + " " + col_name + ";\n";
+      }, dtv_obj);
     }
-    return is_empty;
+    cols_str.pop_back();
+    models_hpp<< "  std::vector<pqxx::row> records;\n"
+              << "  std::string col_str = " + cols_str + ";\n\n"
+              << "  " + model_name + "() = default;\n"
+              << "  template <typename... Args>\n"
+              << "  " + model_name + "(Args&&... args){\n"
+              << "    std::tie(" + cols_str + ") = std::forward_as_tuple(std::forward<Args>(args)...);\n  }\n\n"
+              << "  auto get_attr() const{\n"
+              << "    return std::make_tuple(" + cols_str + ");\n  }\n};\n\n";
+  }
+}
+
+bool is_file_empty(){
+  bool is_empty = true;
+  if(std::filesystem::exists("schema.json")){
+    if(std::filesystem::file_size("schema.json") != 0){
+      is_empty = false;
+    }
+  }
+  return is_empty;
 }
 
 nlohmann::json jsonify(const ms_map& schema){
-    nlohmann::json j;
-    nlohmann::json j_col;
-    for(const auto& [mn, fields] : schema){
-        nlohmann::json field_json;
-        for(const auto& [col, col_obj] : fields){
-            variant_to_json(j_col, col_obj);
-            field_json[col] = j_col;
-        }
-        j[mn] = field_json;
+  nlohmann::json j;
+  nlohmann::json j_col;
+  for(const auto& [mn, fields] : schema){
+    nlohmann::json field_json;
+    for(const auto& [col, col_obj] : fields){
+      variant_to_json(j_col, col_obj);
+      field_json[col] = j_col;
     }
-    return j;
+    j[mn] = field_json;
+  }
+  return j;
 }
+
 ms_map parse_to_obj(nlohmann::json& j){
-    ms_map parsed;
-    std::unordered_map<std::string, DataTypeVariant> fields;
-    DataTypeVariant variant;
-    for(const auto& [model, j_field_map] : j.items()){
-        for(const auto& [col, json_dtv] : j_field_map.items()){
-            variant_from_json(json_dtv, variant);
-            fields[col] = variant;
-        }
-        parsed[model] = fields;
+  ms_map parsed;
+  std::unordered_map<std::string, DataTypeVariant> fields;
+  DataTypeVariant variant;
+  for(const auto& [model, j_field_map] : j.items()){
+    for(const auto& [col, json_dtv] : j_field_map.items()){
+      variant_from_json(json_dtv, variant);
+      fields[col] = variant;
     }
-    return parsed;
+    parsed[model] = fields;
+  }
+  return parsed;
 }
 
 void save_schema_ms(const ms_map& schema){
-    std::ofstream schema_ms_file("schema.json");
-    if(!schema_ms_file.is_open()) throw std::runtime_error("Could not write schema into file.");
-    nlohmann::json j = jsonify(schema);
-    schema_ms_file << j.dump(4);
+  std::ofstream schema_ms_file("schema.json");
+  if(!schema_ms_file.is_open()) throw std::runtime_error("Could not write schema into file.");
+  schema_ms_file << jsonify(schema).dump(4);
 }
 
 ms_map load_schema_ms(){
-    std::ifstream schema_ms_file("schema.json");
-    if(!schema_ms_file.is_open()) throw std::runtime_error("Could not load schema from file.");
-    nlohmann::json j;
-    schema_ms_file >> j;
-    return parse_to_obj(j);
+  std::ifstream schema_ms_file("schema.json");
+  if(!schema_ms_file.is_open()) throw std::runtime_error("Could not load schema from file.");
+  nlohmann::json j;
+  schema_ms_file >> j;
+  return parse_to_obj(j);
 }
 
 void Model::make_migrations(){
-    for(const auto& pair : ModelFactory::registry()){
-        auto model_instance = ModelFactory::create_model_instance(pair.first);
-        new_ms[pair.first] = model_instance->fields; 
-    }
-    if(!is_file_empty()){
-        init_ms = load_schema_ms();
-    }
-    save_schema_ms(new_ms);
-    track_changes();
+  for(const auto& pair : ModelFactory::registry()){
+    new_ms[pair.first] = ModelFactory::create_model_instance(pair.first)->fields;
+  }
+  if(!is_file_empty()){
+    init_ms = load_schema_ms();
+  }
+  save_schema_ms(new_ms);
+  track_changes();
+  create_model_hpp(new_ms);
 }
 
 std::string sqlize_table(std::string model_name, std::unordered_map<std::string, DataTypeVariant>& fields){
@@ -86,9 +118,10 @@ std::string sqlize_table(std::string model_name, std::unordered_map<std::string,
   std::vector<std::string> sql_strings;
 
   for(auto& [col, dtv_obj] : fields){
-    visit([&](auto& col_obj){
+    std::visit([&](auto& col_obj){
       if constexpr(std::is_same_v<std::decay_t<decltype(col_obj)>, ForeignKey>){
         std::string fk_sql_seg = col_obj.sql_generator(col);
+        //NOTE check the correct syntax and logic for foreign keys and whether they require columns
         fk_sql_seg = "CONSTRAINT fk_" + model_name + "_" + col + " " + fk_sql_seg;
         sql_strings.push_back(fk_sql_seg);
         return;
@@ -187,11 +220,11 @@ std::vector<std::string> rename(m_rename_m& mrm, f_rename_m& frm, ms_map& init_m
 } 
 
 std::vector<std::string> create_or_drop_tables(ms_map& init_ms, ms_map& new_ms){
-   std::vector<std::string> db_mods;
-   std::string mods;
-   char choice = 'n';
+  std::vector<std::string> db_mods;
+  std::string mods;
+  char choice = 'n';
 
-   for(const auto& [model, field_map] : init_ms){
+  for(const auto& [model, field_map] : init_ms){
     if(new_ms.find(model) == new_ms.end()){
       std::cout<<"The model "<<model<< " will be dropped. Are u sure about this?"<<std::endl;
       std::cin >>choice;
@@ -202,7 +235,7 @@ std::vector<std::string> create_or_drop_tables(ms_map& init_ms, ms_map& new_ms){
         init_ms.erase(model);
       }
     }
-   }
+  }
 
   for(auto& [model, field_map] : new_ms){
     if(init_ms.find(model) == init_ms.end()){
@@ -278,7 +311,7 @@ void handle_types(ms_map::iterator& new_it, const std::string col, DataTypeVaria
           constraint_name = constraint_name + "_" + col;
         }
       }
-//NOTE input some more logic here to handle if the maps are empty
+      //NOTE input some more logic here to handle if the maps are empty
       Migrations << "ALTER TABLE " + new_it->first + " DROP CONSTRAINT " + constraint_name + ";\n" + 
         "ALTER TABLE " + new_it->first + " ADD CONSTRAINT fk_" + new_it->first + "_" +
         col + " (" + col_obj.sql_generator(col)  + ");\n";
@@ -288,7 +321,7 @@ void handle_types(ms_map::iterator& new_it, const std::string col, DataTypeVaria
         [&](DecimalField& init_field){
           if(init_field.datatype != col_obj.datatype){
             alterations = col + " TYPE " + col_obj.datatype + "(" + 
-            std::to_string(col_obj.max_length) + std::to_string(col_obj.decimal_places) + ")";
+              std::to_string(col_obj.max_length) + std::to_string(col_obj.decimal_places) + ")";
             Migrations << "ALTER TABLE " +  new_it->first + " ALTER COLUMN " + alterations + ";\n";
           }
 
@@ -358,6 +391,7 @@ void handle_types(ms_map::iterator& new_it, const std::string col, DataTypeVaria
 }
 
 void Model::track_changes(){
+  //TODO a replace the rename maps with json objects which are more lightweight
   m_rename_m mrm = model_renames;
   f_rename_m frm = column_renames;
 
@@ -479,7 +513,7 @@ void Model::track_changes(){
     }
   }
 
-  //ERROR undefined behaviour from this for loop. The init_it iterator somehow accesses the columns to other tables 
+  //ERROR undefined behaviour from this for loop. The init_it iterator somehow accesses the columns to other tables
   //leading to undefined drops of these columns even though they are not to be be dropped...
 
   for(const auto& [new_model_name, new_col_map]:new_ms){

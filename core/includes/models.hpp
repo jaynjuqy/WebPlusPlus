@@ -5,16 +5,14 @@
 #include <functional>
 #include <memory>
 #include "./datatypes.hpp"
-//#include "./queryclass.hpp"
 
 using ms_map = std::unordered_map<std::string, std::unordered_map<std::string, DataTypeVariant>>;
 
-class Model{ 
+class Model{
 public:
   std::unordered_map<std::string, DataTypeVariant> fields;
   ms_map init_ms;
   ms_map new_ms;
-  //QueryClass records;
 
   Model(){
     fields.clear();

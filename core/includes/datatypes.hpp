@@ -9,11 +9,11 @@ std::string to_upper(std::string& str);
 
 class FieldAttr{
 public:
-	std::string datatype, sql_segment;
+	std::string ctype, datatype, sql_segment;
 	bool primary_key, not_null, unique;
 
-	FieldAttr(std::string dt = "null", bool nn = false, bool uq = false, bool pk = false)
-	: datatype(dt), not_null(nn), unique(uq), primary_key(pk)
+	FieldAttr(std::string ct = "null",std::string dt = "null", bool nn = false, bool uq = false, bool pk = false)
+	: ctype(ct), datatype(dt), not_null(nn), unique(uq), primary_key(pk)
 	{}
 };
 
@@ -24,7 +24,7 @@ public:
 
   IntegerField() = default;
 	IntegerField(std::string datatype, bool pk = false, bool not_null = false, bool unique = false, int check_constr = 0, std::string check_cond = "default")
-    :FieldAttr(datatype, not_null, unique, pk), check_constraint(check_constr), check_condition(check_cond)
+    :FieldAttr("int", datatype, not_null, unique, pk), check_constraint(check_constr), check_condition(check_cond)
  	{
     	sql_generator();
 	}
@@ -49,7 +49,7 @@ public:
 
   DecimalField() = default;
 	DecimalField(std::string datatype, int max_length, int decimal_places, bool pk = false)
-    :FieldAttr(datatype, false, false, pk), max_length(max_length), decimal_places(decimal_places)
+    :FieldAttr("float", datatype, false, false, pk), max_length(max_length), decimal_places(decimal_places)
 	{
     	sql_generator();
 	}
@@ -76,7 +76,7 @@ public:
 
   CharField() = default;
 	CharField(std::string datatype, int length = 0, bool not_null = false, bool unique = false, bool pk = false)
-    :FieldAttr(datatype, not_null, unique, pk), length(length)
+    :FieldAttr("std::string", datatype, not_null, unique, pk), length(length)
 	{
 	    sql_generator();
 	}
@@ -104,7 +104,7 @@ public:
 	bool enable_default, default_value;
 
 	BoolField(bool not_null = false, bool enable_default = false, bool default_value = false)
-	:FieldAttr("BOOLEAN", not_null, false, false), enable_default(enable_default), default_value(default_value)
+	:FieldAttr("bool", "BOOLEAN", not_null, false, false), enable_default(enable_default), default_value(default_value)
 	{
     	sql_generator();
 	}
@@ -127,7 +127,7 @@ public:
 
   BinaryField() = default;
 	BinaryField(int size, bool not_null = false, bool unique = false, bool pk = false)
-  :FieldAttr("BYTEA", not_null, unique, pk),size(size)
+  :FieldAttr("int", "BYTEA", not_null, unique, pk),size(size)
 	{
     	sql_generator();
 	}
@@ -151,7 +151,7 @@ public:
 
   DateTimeField() = default;
 	DateTimeField(std::string datatype, bool enable_default = false, std::string default_val = "default", bool pk = false)
-  :FieldAttr(datatype, false, false, pk), enable_default(enable_default), default_val(default_val)
+  :FieldAttr("std::string",datatype, false, false, pk), enable_default(enable_default), default_val(default_val)
 	{
    	sql_generator();
 	}
@@ -178,7 +178,7 @@ public:
   std::string model_name, column_name, on_delete, on_update;
 
 	ForeignKey(std::string mn = "def", std::string cn = "def", std::string on_del = "def", std::string on_upd = "def")
-	:FieldAttr("FOREIGN KEY", false, false, false), model_name(mn), column_name(cn), on_delete(on_del), on_update(on_upd)
+	:FieldAttr("null", "FOREIGN KEY", false, false, false), model_name(mn), column_name(cn), on_delete(on_del), on_update(on_upd)
 	{}
 
 	std::string sql_generator(const std::string& column){
