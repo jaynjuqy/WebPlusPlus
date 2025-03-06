@@ -1,6 +1,5 @@
-Warning:
-  This library is STILL in active development.
+>### Warning:
+>This library is still in ACTIVE development.
 
-This is a backend web framework in cpp. This is inspired by the problem that most cpp web frameworks do not have any ORMs for database operations to be made easy. Those that
-do do not offer that much functionality. Most of them are just a http(s) library with no support for database operations. This framework aims to change that by extending 
-those http(s) libraries (i aim to use the http library in the repo octobanana/belle for this purpose) with database functionality. 
+This will be just a tool for linking multiple cpp libraries to simplify setup of web development. Just a simple executable to handle project setup
+based on libraries and single header files like the orm repo on this account and belle for faster dev setup for web development. 
